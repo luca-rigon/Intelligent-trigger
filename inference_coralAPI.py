@@ -1,5 +1,4 @@
 # Imports
-import argparse
 import os
 import time
 import numpy as np
@@ -10,14 +9,12 @@ from pycoral.adapters import common
 # -------
 
 
-#Inference on TPU: find time_per_inference vs 'FLOPS; use converted models (floats)
+#Inference on TPU: find time_per_inference vs 'FLOPS; use converted models (quantized & compiled for edgetpu)
 
-#Settings: CPU/TPU, quantized, normal, set path
+#Settings: FCN/CNN, quantized, set path
 var = 'CNN'
 models = []
-folder = 'quantized/'
-suffix = '_quantized.tflite'
-model_path = '/home/mendel/inference_tests/'+folder
+model_path = '/home/mendel/inference_tests/edgeTPU/'
 plots_dir = "plots"
 
 
@@ -63,7 +60,7 @@ for m in range(n_models):
 
     
     # Load model, initialize interpreter - Add Edge TPU; https://coral.ai/docs/edgetpu/tflite-python/?fbclid=IwAR15uMuMw096qEZFbex5BXumbObDn9dMQakk25ZFqCiatJX48D6NGvUFXyw#update-existing-tf-lite-code-for-the-edge-tpu
-    path_to_file = model_path + model_name + suffix
+    path_to_file = model_path + model_name + '_quantized_edgetpu.tflite'
     interpreter = edgetpu.make_interpreter(path_to_file)
     interpreter.allocate_tensors()
 
