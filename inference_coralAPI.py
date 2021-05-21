@@ -71,10 +71,8 @@ for m in range(n_models):
     print("Input details:", input_details)
 
     
-
-
-    #N = int(loaded_events/10000) #divide #events by N*10'000 sets
-    N = int(loaded_events/5)
+    #N = loaded_events #test on all events
+    N = int(loaded_events/5) #test on 60'000 events
 
     # Make pedictions for each event and time over 10'000 inferences
     for i in range(N):
