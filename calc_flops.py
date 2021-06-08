@@ -28,7 +28,7 @@ def get_flops(path_to_model):
 
 
 
-# .... Define your model here ....
+# .... Define your model here .... 
 #Make list of the model names (fully connected ones and convolutional ones
 
 models_fc = ['model_fc_1l_16', 'model_fc_4l_16', 'model_fc_1l_32', 'model_fc_4l_32', 'model_fc_1l_64', 'model_fc_4l_64', 'model_fc_1l_128', 'model_fc_4l_128', 'model_fc_1l_256', 'model_fc_4l_200', 'model_fc_4l_256', 'model_fc_4l_350']
