@@ -3,50 +3,57 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 
-def flops_fc(n, l):  # n: number of layers, l: length of layers
-    return (2*256-1)*l + (n-1)*(2*l-1)*l + (2*l-1)*2
 
-k=10
+from tensorflow.python.profiler.model_analyzer import profile
+from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
+print('TensorFlow:', tf.version)
 
-l1 = k**2*247*10*2
-l2 = l1 + k**2*238*10*2
-l3 = l2 + k**2*229*10*2
-l4 = l3 + k**2*220*10*2
 
-#print(l1 + (2*2470-1)*2, l2 + (2380*2-1)*2, l3 + (2290*2-1)*2, l4 + (2200*2-1)*2)
-#print(k**2*237*10*2 + k**2*218*10*2 + (2*2180-1)*2)
+#Function that calculates the number of flops of a model, given its path
+#https://github.com/tensorflow/tensorflow/issues/32809
 
-f5 = k**2*247*5*2 + k**2*238*5*2
-f10 = f5*2
-f15 = f5*3
-f20 = f5*4
+def get_flops(path_to_model):
+    model = tf.keras.models.load_model(path_to_model)
 
-#print(f5 + (2*1190-1)*2, f10 + (2*2380-1)*2, f15 + (2*3570-1)*2, f20 + (2*4760-1)*2)
+    forward_pass = tf.function(model.call, input_signature=[tf.TensorSpec(shape=(1,) + model.input_shape[1:])])
 
-print(l2 + (2*470-1)*2)
+    graph_info = profile(forward_pass.get_concrete_function().graph,
+                        options=ProfileOptionBuilder.float_operation())
 
-#model = keras.models.load_model(f'models/model_cnn_1layer10_10.h5', compile=False)
-#converter = tf.lite.TFLiteConverter.from_keras_model(model)
-#tflite_model = converter.convert()
+    #Consider nuumber of flops: use //2 if only considering multiply accumulates (MACC)
+    flops = graph_info.total_float_ops 
+    print('Flops: {:,}'.format(flops))
 
-# Save the model.
-#with open('model.tflite', 'wb') as f:
- # f.write(tflite_model)
+    return flops
 
 
 
-length_layers_fc = np.array([16, 32, 64, 128, 256])
-number_of_layers_fc = np.arange(1,5)
-print(length_layers_fc, number_of_layers_fc)
+# .... Define your model here ....
+#Make list of the model names (fully connected ones and convolutional ones
 
-table = np.zeros((len(number_of_layers_fc), len(length_layers_fc)))
+models_fc = ['model_fc_1l_16', 'model_fc_4l_16', 'model_fc_1l_32', 'model_fc_4l_32', 'model_fc_1l_64', 'model_fc_4l_64', 'model_fc_1l_128', 'model_fc_4l_128', 'model_fc_1l_256', 'model_fc_4l_200', 'model_fc_4l_256', 'model_fc_4l_350']
+
+models_cnn = [ 'model_conv1D_1l_5_1','model_conv1D_1l_5_5', 'model_conv1D_1l_10_5', 'model_conv1D_1l_15_5', 'model_conv1D_2l_10_5', 'model_conv1D_2l_15_5', 'model_conv1D_2l_5_10', 'model_conv1D_1l_15_10', 'model_conv1D_2l_10_10', 'model_conv1D_2l_10_20', 'model_conv1D_2l_20_10']
 
 
-for i,n in enumerate(number_of_layers_fc):
-    print(n)
-    for j,l in enumerate(length_layers_fc):
-        table[i,j] = flops_fc(n,l)
-        print(flops_fc(n,l))
+flops_fc = []
+flops_cnn = []
 
-print(table)
+#get flops for the FCNs
+for i in range(len(models_fc)):
+    model_name = models_fc[i]
+    tot_flops = get_flops(f'model_path/{model_name}.h5')
+    flops_fc.append(tot_flops)
 
+#get flops for the CNNs
+for i in range(len(models_cnn)):
+    model_name = models_cnn[i]
+    tot_flops = get_flops(f'model_path/{model_name}.h5')
+    flops_cnn.append(tot_flops)
+
+   
+
+
+
+print('FLOPS for the fully connected networks: ', flops_fc)
+print('FLOPS for the fully connected networks: ', flops_cnn)
