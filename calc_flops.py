@@ -6,7 +6,7 @@ from tensorflow import keras
 
 from tensorflow.python.profiler.model_analyzer import profile
 from tensorflow.python.profiler.option_builder import ProfileOptionBuilder
-print('TensorFlow:', tf.version)
+print('TensorFlow: ', tf.version)
 
 
 #Function that calculates the number of flops of a model, given its path
