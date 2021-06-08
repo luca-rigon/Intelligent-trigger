@@ -1,4 +1,5 @@
 # Compatibility layer between Python 2 and Python 3
+#original file that trains the networks
 import os
 import matplotlib.pyplot as plt
 import numpy as np
