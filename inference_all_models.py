@@ -1,28 +1,29 @@
-#Code Sigfrid
-# Imports
 import os
 import time
 import numpy as np
 #from matplotlib import pyplot as plt
 from termcolor import cprint
 import tflite_runtime.interpreter as tflite
+
 # -------
 
-time_tot = time.time()
 
-#Inference on TPU: find time_per_inference vs 'FLOPS; use converted models (floats)
+#Run model inference: as a function of FLOPS on the DevBoard
 
 #Settings: CPU/TPU, quantized, normal, set path
-var = 'FCN'
-chip = 'cpu'
-quant = False
+var = 'CNN'         #FCN or CNN
+chip = 'cpu'        #cpu or tpu
+quant = False        #quantized model or unquantized
 models = []
 folder = ''
 suffix = '.tflite'
+call_delegate = False   #activate the TPU-delegate, run on TPU
+type = np.int8  #format of the data, depending iff float32-model, or int8-model
 
 if chip == 'cpu':
     if quant == False:
         folder = 'converted/'
+        type = np.float32
         print('Inference for Normal models on CPU')
     else:
         folder = 'quantized/'
@@ -31,17 +32,17 @@ if chip == 'cpu':
 else:
     folder = 'edgeTPU/'
     suffix = '_quantized_edgetpu.tflite'
+    call_delegate = True
     print('Inference for quantized models on TPU')
 
 
 model_path = '/home/mendel/inference_tests/'+folder
-plots_dir = "plots"
+plots_dir = "plots_new"
 
 
 
-# Load test file data
-#data = np.zeros((950000, 256, 1))
-data = np.load('/home/mendel/inference_tests/testing_data_300k.npy').astype(np.float32)
+# Load test file data: 300k events
+data = np.load('/home/mendel/inference_tests/testing_data_300k.npy').astype(type)
 loaded_events = data.shape[0]
 n_samples = data.shape[1]
 n_channels = data.shape[-1]
@@ -55,8 +56,9 @@ if var == 'FCN':
     models = ['model_fc_1l_16', 'model_fc_4l_16', 'model_fc_1l_32', 'model_fc_4l_32', 'model_fc_1l_64', 'model_fc_4l_64', 'model_fc_1l_128', 'model_fc_4l_128', 'model_fc_1l_256', 'model_fc_4l_200', 'model_fc_4l_256', 'model_fc_4l_350']
 else:
     print('\nConvolutional networks:')
-    #data = np.expand_dims(data, axis=-1) #for cnn network: shape is (number_events, 256, n_channels, 1) 
-    models = ['model_conv1D_1l_5_5', 'model_conv1D_1l_10_5', 'model_conv1D_1l_15_5', 'model_conv1D_2l_10_5', 'model_conv1D_2l_15_5', 'model_conv1D_2l_5_10', 'model_conv1D_1l_15_10', 'model_conv1D_2l_10_10', 'model_conv1D_2l_20_10']#, 'model_conv1D_2l_10_20']
+    #data = np.expand_dims(data, axis=-1) #for conv2D network: shape is (number_events, 256, n_channels, 1) 
+    models = ['model_conv1D_2l_10_20']#'model_conv1D_1l_5_1', 'model_conv1D_2l_10_20']#['model_conv2D_1l_5_5', 'model_conv2D_1l_10_5', 'model_conv2D_1l_15_5', 'model_conv2D_2l_10_5', 'model_conv2D_2l_15_5', 'model_conv2D_2l_5_10', 'model_conv2D_1l_15_10', 'model_conv2D_2l_10_10', 'model_conv2D_2l_20_10']#, 'model_conv1D_2l_10_20']
+    #models = ['model_conv1D_1l_5_5', 'model_conv1D_1l_10_5', 'model_conv1D_1l_15_5', 'model_conv1D_2l_10_5', 'model_conv1D_2l_15_5', 'model_conv1D_2l_5_10', 'model_conv1D_1l_15_10', 'model_conv1D_2l_10_10', 'model_conv1D_2l_20_10']
 
 n_models = len(models)
 print("data.shape", data.shape)
@@ -71,6 +73,9 @@ if not os.path.exists(plots_dir):
 times_mean = []
 times_std = []
 
+index = np.arange(0,loaded_events,10000) #choose indices to infere over
+print(index)
+
 
 for m in range(n_models):
     times = []
@@ -81,8 +86,12 @@ for m in range(n_models):
     
     # Load model, initialize interpreter - Add Edge TPU; https://coral.ai/docs/edgetpu/tflite-python/?fbclid=IwAR15uMuMw096qEZFbex5BXumbObDn9dMQakk25ZFqCiatJX48D6NGvUFXyw#update-existing-tf-lite-code-for-the-edge-tpu
     path_to_file = model_path + model_name + suffix
-    interpreter = tflite.Interpreter(path_to_file,
-        experimental_delegates=[tflite.load_delegate('libedgetpu.so.1')])
+
+    if call_delegate:
+        interpreter = tflite.Interpreter(path_to_file, experimental_delegates=[tflite.load_delegate('libedgetpu.so.1')])
+    else:
+        interpreter = tflite.Interpreter(path_to_file)
+    
     interpreter.allocate_tensors()
 
 
@@ -93,28 +102,35 @@ for m in range(n_models):
     print("\nInput details:", input_details)
 
 
-    interpreter.resize_tensor_input(0, [1, n_samples])
-    interpreter.allocate_tensors()
+    
+
 
     #N = int(loaded_events/10000) #divide #events by N*10'000 sets
-    N = loaded_events
+    N = int(loaded_events/10000)
+
+    
 
     # Make pedictions for each event and time over 10'000 inferences
     for i in range(N):
-        if i%25000==0:
-            print(f"Iteration {i}/{N}...")
-            print('Average time: ', np.mean(times))     
+        print(f"Iteration {i}/{N}...")
+        print('Time: ', np.mean(times))
 
-        
-        event_i = data[i, :]  # ---> change this for conv network; add ,:,:]
+        u = index[i]
+        event_i = data[u, :, :]  # ---> change this for conv network; add ,:,:]
         event_i = np.expand_dims(event_i, axis=0)
-
+      
         t0 = time.time()
-        interpreter.set_tensor(input_details[0]['index'], event_i)
-        interpreter.invoke()
-        t = (time.time() - t0)
+        for k in range(10000):
+            interpreter.set_tensor(input_details[0]['index'], event_i)
+            interpreter.invoke()
+            if k == 0:
+                t0 = time.time()
         
-        times.append(t)
+        t = (time.time() - t0)/9999
+
+        if  i != 0:
+            times.append(t)
+        print(f'time inference at {u} = {t}')
         
     #print(times)
 
@@ -129,12 +145,11 @@ for m in range(n_models):
 
     print(f'Average time per prediction = ({mean*10**3} pm {std*10**3}) ms')
     print(f'Prediction rate = ({pred_rate} pm {pred_std}) pred/s')
+    print(f'Median = {np.median(times)}')
 
 
 np.save(f'{plots_dir}/{var}_inference_float_{chip}_mean.npy', times_mean)
 np.save(f'{plots_dir}/{var}_inference_float_{chip}_std.npy', times_std)
 
     
-
-print(f'\nTotal time elapsed: {time.time()-time_tot}')
-cprint("Inference test for Fully connected Network done!", "green")
+cprint("\nInference test for Fully connected Network done!", "green")
